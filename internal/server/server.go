@@ -4,6 +4,7 @@ package server
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -29,6 +30,8 @@ type cardAPI interface {
 	ListTemplates(ctx context.Context, bookmark string) (mochi.TemplatesResult, error)
 	GetTemplate(ctx context.Context, id string) (mochi.Template, error)
 	CreateTemplate(ctx context.Context, params mochi.CreateTemplateParams) (mochi.Template, error)
+	AddCardAttachment(ctx context.Context, cardID, filename string, data []byte, contentType string) (mochi.Card, error)
+	DeleteCardAttachment(ctx context.Context, cardID, filename string) error
 }
 
 // handlers holds the dependencies shared by the tool handlers.
@@ -114,6 +117,14 @@ func (h *handlers) register(s *mcp.Server) {
 		Name:        "mochi_create_template",
 		Description: "Create a Mochi card template. Content is Markdown with << Field name >> placeholders; fields maps each field ID to its definition.",
 	}, h.createTemplate)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "mochi_add_card_attachment",
+		Description: "Attach a file to a Mochi card. Provide the file as base64; reference it from card content as ![](@media/<filename>).",
+	}, h.addCardAttachment)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "mochi_delete_card_attachment",
+		Description: "Delete an attachment from a Mochi card by filename.",
+	}, h.deleteCardAttachment)
 }
 
 // ---- Input/output types ----
@@ -252,6 +263,34 @@ type CreateTemplateInput struct {
 // TemplateOutput wraps a single template.
 type TemplateOutput struct {
 	Template mochi.Template `json:"template" jsonschema:"the template"`
+}
+
+// AddCardAttachmentInput are the arguments for mochi_add_card_attachment.
+type AddCardAttachmentInput struct {
+	CardID      string `json:"card_id" jsonschema:"the ID of the card to attach the file to"`
+	Filename    string `json:"filename" jsonschema:"the attachment filename, e.g. diagram.png"`
+	DataBase64  string `json:"data_base64" jsonschema:"the file contents, base64-encoded"`
+	ContentType string `json:"content_type,omitempty" jsonschema:"optional MIME type, e.g. image/png"`
+}
+
+// AddCardAttachmentOutput reports the result of an attachment upload.
+type AddCardAttachmentOutput struct {
+	CardID            string `json:"card_id" jsonschema:"the card the file was attached to"`
+	Filename          string `json:"filename" jsonschema:"the attachment filename"`
+	MarkdownReference string `json:"markdown_reference" jsonschema:"snippet to embed the attachment in card content"`
+}
+
+// DeleteCardAttachmentInput are the arguments for mochi_delete_card_attachment.
+type DeleteCardAttachmentInput struct {
+	CardID   string `json:"card_id" jsonschema:"the ID of the card"`
+	Filename string `json:"filename" jsonschema:"the attachment filename to delete"`
+}
+
+// DeleteCardAttachmentOutput reports the result of an attachment delete.
+type DeleteCardAttachmentOutput struct {
+	Deleted  bool   `json:"deleted" jsonschema:"true if the attachment was deleted"`
+	CardID   string `json:"card_id" jsonschema:"the card the attachment was removed from"`
+	Filename string `json:"filename" jsonschema:"the deleted attachment filename"`
 }
 
 // DeckOutput wraps a single deck.
@@ -442,6 +481,43 @@ func (h *handlers) createTemplate(ctx context.Context, _ *mcp.CallToolRequest, i
 		return nil, TemplateOutput{}, err
 	}
 	return nil, TemplateOutput{Template: tmpl}, nil
+}
+
+func (h *handlers) addCardAttachment(ctx context.Context, _ *mcp.CallToolRequest, in AddCardAttachmentInput) (*mcp.CallToolResult, AddCardAttachmentOutput, error) {
+	if in.CardID == "" {
+		return nil, AddCardAttachmentOutput{}, fmt.Errorf("card_id is required")
+	}
+	if in.Filename == "" {
+		return nil, AddCardAttachmentOutput{}, fmt.Errorf("filename is required")
+	}
+	data, err := base64.StdEncoding.DecodeString(in.DataBase64)
+	if err != nil {
+		return nil, AddCardAttachmentOutput{}, fmt.Errorf("data_base64 is not valid base64: %w", err)
+	}
+	if len(data) == 0 {
+		return nil, AddCardAttachmentOutput{}, fmt.Errorf("data_base64 is required")
+	}
+	if _, err := h.api.AddCardAttachment(ctx, in.CardID, in.Filename, data, in.ContentType); err != nil {
+		return nil, AddCardAttachmentOutput{}, err
+	}
+	return nil, AddCardAttachmentOutput{
+		CardID:            in.CardID,
+		Filename:          in.Filename,
+		MarkdownReference: fmt.Sprintf("![](@media/%s)", in.Filename),
+	}, nil
+}
+
+func (h *handlers) deleteCardAttachment(ctx context.Context, _ *mcp.CallToolRequest, in DeleteCardAttachmentInput) (*mcp.CallToolResult, DeleteCardAttachmentOutput, error) {
+	if in.CardID == "" {
+		return nil, DeleteCardAttachmentOutput{}, fmt.Errorf("card_id is required")
+	}
+	if in.Filename == "" {
+		return nil, DeleteCardAttachmentOutput{}, fmt.Errorf("filename is required")
+	}
+	if err := h.api.DeleteCardAttachment(ctx, in.CardID, in.Filename); err != nil {
+		return nil, DeleteCardAttachmentOutput{}, err
+	}
+	return nil, DeleteCardAttachmentOutput{Deleted: true, CardID: in.CardID, Filename: in.Filename}, nil
 }
 
 func (h *handlers) createDeck(ctx context.Context, _ *mcp.CallToolRequest, in CreateDeckInput) (*mcp.CallToolResult, DeckOutput, error) {

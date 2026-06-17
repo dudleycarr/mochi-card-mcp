@@ -28,6 +28,8 @@ same set of tools.
 | `mochi_list_templates` | List card templates | `bookmark?` |
 | `mochi_get_template` | Get a single template | `template_id` |
 | `mochi_create_template` | Create a template | `name`, `content`, `fields?` |
+| `mochi_add_card_attachment` | Attach a file to a card (base64) | `card_id`, `filename`, `data_base64`, `content_type?` |
+| `mochi_delete_card_attachment` | Delete a card attachment | `card_id`, `filename` |
 
 Mochi stores both sides of a card in a single Markdown field separated by a
 `---` line. This server hides that detail: `name` is the front and `content` is
@@ -35,6 +37,10 @@ the back. When updating, you can change just one side and the other is preserved
 
 List and search results are paginated. When a response includes a non-empty
 `bookmark`, pass it back in the next call to fetch the following page.
+
+Attachments are uploaded with `mochi_add_card_attachment` (file contents passed
+as base64) and then referenced from a card's `content` with Markdown, e.g.
+`![](@media/diagram.png)`. The tool returns the exact reference snippet to embed.
 
 ## API coverage
 
@@ -49,8 +55,8 @@ table in sync when adding or removing tools.
 | Cards | `POST /cards/:id` | ✅ Supported | `mochi_update_card` |
 | Cards | `DELETE /cards/:id` | ✅ Supported | `mochi_delete_card` |
 | Cards | _(client-side search)_ | ✅ Supported | `mochi_search_cards` |
-| Cards | `POST /cards/:card-id/attachments/:filename` | ❌ Unsupported | [#8](https://github.com/dudleycarr/mochi-card-mcp/issues/8) |
-| Cards | `DELETE /cards/:card-id/attachments/:filename` | ❌ Unsupported | [#12](https://github.com/dudleycarr/mochi-card-mcp/issues/12) |
+| Cards | `POST /cards/:card-id/attachments/:filename` | ✅ Supported | `mochi_add_card_attachment` |
+| Cards | `DELETE /cards/:card-id/attachments/:filename` | ✅ Supported | `mochi_delete_card_attachment` |
 | Decks | `GET /decks` | ✅ Supported | `mochi_list_decks` |
 | Decks | `POST /decks` | ✅ Supported | `mochi_create_deck` |
 | Decks | `GET /decks/:id` | ✅ Supported | `mochi_get_deck` |

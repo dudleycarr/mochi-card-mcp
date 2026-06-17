@@ -86,11 +86,20 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 	if err != nil {
 		return fmt.Errorf("mochi: building request: %w", err)
 	}
-	req.SetBasicAuth(c.apiKey, "")
-	req.Header.Set("Accept", "application/json")
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
+
+	return c.doRequest(req, out)
+}
+
+// doRequest applies authentication, executes req, checks the status, and decodes
+// a successful JSON response body into out (when out is non-nil and a body is
+// present). Callers that need a non-JSON request body (e.g. multipart uploads)
+// build the request themselves and call this directly.
+func (c *Client) doRequest(req *http.Request, out any) error {
+	req.SetBasicAuth(c.apiKey, "")
+	req.Header.Set("Accept", "application/json")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
