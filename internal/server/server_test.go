@@ -30,6 +30,14 @@ type fakeAPI struct {
 
 	createTemplateParams mochi.CreateTemplateParams
 
+	attachCardID      string
+	attachFilename    string
+	attachData        []byte
+	attachContentType string
+
+	deleteAttachCardID   string
+	deleteAttachFilename string
+
 	err error
 }
 
@@ -152,6 +160,23 @@ func (f *fakeAPI) CreateTemplate(_ context.Context, params mochi.CreateTemplateP
 		return mochi.Template{}, f.err
 	}
 	return mochi.Template{ID: "new-template", Name: params.Name, Content: params.Content, Fields: params.Fields}, nil
+}
+
+func (f *fakeAPI) AddCardAttachment(_ context.Context, cardID, filename string, data []byte, contentType string) (mochi.Card, error) {
+	f.attachCardID = cardID
+	f.attachFilename = filename
+	f.attachData = data
+	f.attachContentType = contentType
+	if f.err != nil {
+		return mochi.Card{}, f.err
+	}
+	return mochi.Card{ID: cardID}, nil
+}
+
+func (f *fakeAPI) DeleteCardAttachment(_ context.Context, cardID, filename string) error {
+	f.deleteAttachCardID = cardID
+	f.deleteAttachFilename = filename
+	return f.err
 }
 
 func (f *fakeAPI) CreateDeck(_ context.Context, params mochi.CreateDeckParams) (mochi.Deck, error) {
@@ -403,6 +428,67 @@ func TestCreateTemplateRequiresNameAndContent(t *testing.T) {
 	}
 }
 
+func TestAddCardAttachment(t *testing.T) {
+	f := &fakeAPI{}
+	h := &handlers{api: f}
+	// "hello" base64-encoded.
+	_, out, err := h.addCardAttachment(context.Background(), nil, AddCardAttachmentInput{
+		CardID:      "c1",
+		Filename:    "note.txt",
+		DataBase64:  "aGVsbG8=",
+		ContentType: "text/plain",
+	})
+	if err != nil {
+		t.Fatalf("addCardAttachment: %v", err)
+	}
+	if f.attachCardID != "c1" || f.attachFilename != "note.txt" {
+		t.Errorf("unexpected target: %q/%q", f.attachCardID, f.attachFilename)
+	}
+	if string(f.attachData) != "hello" {
+		t.Errorf("decoded data = %q, want hello", f.attachData)
+	}
+	if f.attachContentType != "text/plain" {
+		t.Errorf("content type = %q", f.attachContentType)
+	}
+	if out.MarkdownReference != "![](@media/note.txt)" {
+		t.Errorf("markdown reference = %q", out.MarkdownReference)
+	}
+}
+
+func TestAddCardAttachmentRejectsBadBase64(t *testing.T) {
+	h := &handlers{api: &fakeAPI{}}
+	if _, _, err := h.addCardAttachment(context.Background(), nil, AddCardAttachmentInput{
+		CardID: "c1", Filename: "x", DataBase64: "not!base64!",
+	}); err == nil {
+		t.Fatal("expected error for invalid base64")
+	}
+}
+
+func TestAddCardAttachmentRequiresFields(t *testing.T) {
+	h := &handlers{api: &fakeAPI{}}
+	// Valid base64 but empty payload should be rejected.
+	if _, _, err := h.addCardAttachment(context.Background(), nil, AddCardAttachmentInput{
+		CardID: "c1", Filename: "x", DataBase64: "",
+	}); err == nil {
+		t.Fatal("expected error for empty data")
+	}
+}
+
+func TestDeleteCardAttachment(t *testing.T) {
+	f := &fakeAPI{}
+	h := &handlers{api: f}
+	_, out, err := h.deleteCardAttachment(context.Background(), nil, DeleteCardAttachmentInput{CardID: "c1", Filename: "old.png"})
+	if err != nil {
+		t.Fatalf("deleteCardAttachment: %v", err)
+	}
+	if f.deleteAttachCardID != "c1" || f.deleteAttachFilename != "old.png" {
+		t.Errorf("unexpected target: %q/%q", f.deleteAttachCardID, f.deleteAttachFilename)
+	}
+	if !out.Deleted || out.CardID != "c1" || out.Filename != "old.png" {
+		t.Errorf("unexpected output: %+v", out)
+	}
+}
+
 func TestHandlerPropagatesError(t *testing.T) {
 	h := &handlers{api: &fakeAPI{err: errors.New("boom")}}
 	if _, _, err := h.listDecks(context.Background(), nil, ListDecksInput{}); err == nil {
@@ -444,6 +530,7 @@ func TestServerToolsRegistered(t *testing.T) {
 		"mochi_search_cards": true, "mochi_list_decks": true, "mochi_get_deck": true,
 		"mochi_create_deck": true, "mochi_update_deck": true, "mochi_delete_deck": true,
 		"mochi_list_templates": true, "mochi_get_template": true, "mochi_create_template": true,
+		"mochi_add_card_attachment": true, "mochi_delete_card_attachment": true,
 	}
 	got := map[string]bool{}
 	for _, tool := range tools.Tools {
