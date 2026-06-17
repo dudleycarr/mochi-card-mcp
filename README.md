@@ -25,6 +25,9 @@ same set of tools.
 | `mochi_create_deck` | Create a deck | `name`, `parent_id?` |
 | `mochi_update_deck` | Update a deck's name, parent, and/or sort | `deck_id`, `name?`, `parent_id?`, `sort?` |
 | `mochi_delete_deck` | Delete a deck | `deck_id` |
+| `mochi_list_templates` | List card templates | `bookmark?` |
+| `mochi_get_template` | Get a single template | `template_id` |
+| `mochi_create_template` | Create a template | `name`, `content`, `fields?` |
 
 Mochi stores both sides of a card in a single Markdown field separated by a
 `---` line. This server hides that detail: `name` is the front and `content` is
@@ -53,9 +56,9 @@ table in sync when adding or removing tools.
 | Decks | `GET /decks/:id` | ✅ Supported | `mochi_get_deck` |
 | Decks | `POST /decks/:id` | ✅ Supported | `mochi_update_deck` |
 | Decks | `DELETE /decks/:id` | ✅ Supported | `mochi_delete_deck` |
-| Templates | `GET /templates` | ❌ Unsupported | [#6](https://github.com/dudleycarr/mochi-card-mcp/issues/6) |
-| Templates | `GET /templates/:id` | ❌ Unsupported | [#11](https://github.com/dudleycarr/mochi-card-mcp/issues/11) |
-| Templates | `POST /templates` | ❌ Unsupported | [#7](https://github.com/dudleycarr/mochi-card-mcp/issues/7) |
+| Templates | `GET /templates` | ✅ Supported | `mochi_list_templates` |
+| Templates | `GET /templates/:id` | ✅ Supported | `mochi_get_template` |
+| Templates | `POST /templates` | ✅ Supported | `mochi_create_template` |
 | Due cards | `GET /due`, `GET /due/:deck-id` | ✅ Supported | `mochi_list_due_cards` |
 
 ## Installation
