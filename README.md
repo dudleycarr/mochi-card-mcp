@@ -1,1 +1,102 @@
 # mochi-card-mcp
+
+A [Model Context Protocol](https://modelcontextprotocol.io) (MCP) server for the
+[Mochi Cards](https://mochi.cards) spaced-repetition app, written in Go using the
+official [Go MCP SDK](https://github.com/modelcontextprotocol/go-sdk).
+
+It lets Claude (and any other MCP client) create, read, update, delete, and
+search your Mochi flashcards and decks. It is a Go port of
+[louis030195/mochi-mcp](https://github.com/louis030195/mochi-mcp) and exposes the
+same set of tools.
+
+## Tools
+
+| Tool | Description | Arguments |
+| --- | --- | --- |
+| `mochi_list_cards` | List cards, optionally filtered by deck | `deck_id?`, `bookmark?`, `limit?` |
+| `mochi_get_card` | Get a single card | `card_id` |
+| `mochi_create_card` | Create a card (`name` = front, `content` = back) | `name`, `content`, `deck_id?` |
+| `mochi_update_card` | Update a card's front and/or back | `card_id`, `name?`, `content?` |
+| `mochi_delete_card` | Delete a card | `card_id` |
+| `mochi_search_cards` | Search cards by content (case-insensitive) | `query`, `bookmark?` |
+| `mochi_list_decks` | List decks | `bookmark?` |
+| `mochi_create_deck` | Create a deck | `name`, `parent_id?` |
+
+Mochi stores both sides of a card in a single Markdown field separated by a
+`---` line. This server hides that detail: `name` is the front and `content` is
+the back. When updating, you can change just one side and the other is preserved.
+
+List and search results are paginated. When a response includes a non-empty
+`bookmark`, pass it back in the next call to fetch the following page.
+
+## Installation
+
+### Download a release
+
+Grab the archive for your platform from the
+[Releases](https://github.com/dudleycarr/mochi-card-mcp/releases) page (macOS
+Intel/Apple Silicon, Linux amd64/arm64, Windows amd64), extract it, and place the
+`mochi-card-mcp` binary on your `PATH`.
+
+### Build from source
+
+Requires Go 1.26+.
+
+```sh
+go install github.com/dudleycarr/mochi-card-mcp@latest
+```
+
+or, from a checkout:
+
+```sh
+go build -o mochi-card-mcp .
+```
+
+## Configuration
+
+The server needs a Mochi API key, supplied via the `MOCHI_API_KEY` environment
+variable. Create one under **Account Settings → API** in Mochi (a Mochi Pro
+subscription is required for API access).
+
+### Claude Desktop / Claude Code
+
+Add the server to your MCP configuration (e.g. `claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "mochi": {
+      "command": "mochi-card-mcp",
+      "env": {
+        "MOCHI_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
+```
+
+Or, with the Claude Code CLI:
+
+```sh
+claude mcp add mochi --env MOCHI_API_KEY=your-api-key-here -- mochi-card-mcp
+```
+
+The server communicates over stdio.
+
+## Development
+
+```sh
+go test ./...        # run the tests
+go vet ./...         # static checks
+gofmt -l .           # formatting (should print nothing)
+```
+
+The project layout:
+
+- `internal/mochi` — a thin client for the Mochi Cards REST API.
+- `internal/server` — the MCP server wiring the API to tools.
+- `main.go` — the stdio entrypoint.
+
+## License
+
+See [LICENSE](LICENSE).
