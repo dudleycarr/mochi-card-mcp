@@ -30,6 +30,31 @@ the back. When updating, you can change just one side and the other is preserved
 List and search results are paginated. When a response includes a non-empty
 `bookmark`, pass it back in the next call to fetch the following page.
 
+## API coverage
+
+Status of each [Mochi API](https://mochi.cards/docs/api/) endpoint. Keep this
+table in sync when adding or removing tools.
+
+| Resource | Endpoint | Status | Tool / Issue |
+| --- | --- | --- | --- |
+| Cards | `GET /cards` | ✅ Supported | `mochi_list_cards` |
+| Cards | `GET /cards/:id` | ✅ Supported | `mochi_get_card` |
+| Cards | `POST /cards` | ✅ Supported | `mochi_create_card` |
+| Cards | `POST /cards/:id` | ✅ Supported | `mochi_update_card` |
+| Cards | `DELETE /cards/:id` | ✅ Supported | `mochi_delete_card` |
+| Cards | _(client-side search)_ | ✅ Supported | `mochi_search_cards` |
+| Cards | `POST /cards/:card-id/attachments/:filename` | ❌ Unsupported | [#8](https://github.com/dudleycarr/mochi-card-mcp/issues/8) |
+| Cards | `DELETE /cards/:card-id/attachments/:filename` | ❌ Unsupported | [#12](https://github.com/dudleycarr/mochi-card-mcp/issues/12) |
+| Decks | `GET /decks` | ✅ Supported | `mochi_list_decks` |
+| Decks | `POST /decks` | ✅ Supported | `mochi_create_deck` |
+| Decks | `GET /decks/:id` | ❌ Unsupported | [#9](https://github.com/dudleycarr/mochi-card-mcp/issues/9) |
+| Decks | `POST /decks/:id` | ❌ Unsupported | [#5](https://github.com/dudleycarr/mochi-card-mcp/issues/5) |
+| Decks | `DELETE /decks/:id` | ❌ Unsupported | [#10](https://github.com/dudleycarr/mochi-card-mcp/issues/10) |
+| Templates | `GET /templates` | ❌ Unsupported | [#6](https://github.com/dudleycarr/mochi-card-mcp/issues/6) |
+| Templates | `GET /templates/:id` | ❌ Unsupported | [#11](https://github.com/dudleycarr/mochi-card-mcp/issues/11) |
+| Templates | `POST /templates` | ❌ Unsupported | [#7](https://github.com/dudleycarr/mochi-card-mcp/issues/7) |
+| Due cards | `GET /due`, `GET /due/:deck-id` | ✅ Supported | `mochi_list_due_cards` |
+
 ## Installation
 
 ### Download a release

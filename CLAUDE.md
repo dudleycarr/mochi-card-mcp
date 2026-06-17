@@ -35,6 +35,8 @@ Three layers, dependencies pointing downward:
 
 - **`cardAPI` interface is the seam for tests.** When adding a new tool, you must add its method to the `cardAPI` interface in `internal/server/server.go` AND to the `fakeAPI` in `server_test.go`, or the package won't compile. The end-to-end test (`TestServerToolsRegistered`) asserts an exact tool count — update its `want` map when adding/removing tools.
 
+- **The README "API coverage" table is the source of truth for endpoint support.** It maps every Mochi API endpoint to ✅ Supported (with its tool name) or ❌ Unsupported (with a tracking issue link). **Always update this table before committing/opening a PR** whenever you add, remove, or rename a tool, or change which endpoints are covered — move the row to Supported and reference the implementing tool. Unimplemented endpoints each have an open GitHub issue; close/link it from the PR.
+
 - **Search is client-side.** Mochi has no search endpoint. `SearchCards` fetches one page of `/cards` and filters by case-insensitive substring. A page can return zero matches while still returning a non-empty `bookmark` to continue — this is expected, not a bug.
 
 - **Pagination = opaque bookmarks.** `/cards` and `/decks` return `{"docs": [...], "bookmark": "..."}`; pass a non-empty `bookmark` back to get the next page. `mochi_list_cards`/`mochi_search_cards`/`mochi_list_decks` thread it through input and output.
@@ -66,5 +68,6 @@ To release: merge to `main`, then `git tag -a vX.Y.Z <commit> && git push origin
 ## Repo conventions
 
 - Workflow is branch + PR into `main`; releases are cut by tagging the merge commit.
+- Before committing or opening a PR that changes tool coverage, update the README "API coverage" table (see the design note above).
 - Commit messages are Conventional-Commits style (`feat:`, `feat(mochi):`, `ci:`, `docs:`, `chore:`).
 - This repo is configured to sign commits via a 1Password SSH agent, which requires interactive desktop approval and fails in non-interactive sessions. When committing programmatically here, use `--no-gpg-sign` (and `-c tag.gpgSign=false` for tags). Existing history is intentionally unsigned for this reason.
