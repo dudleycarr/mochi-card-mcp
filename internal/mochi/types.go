@@ -65,3 +65,11 @@ type CreateDeckParams struct {
 	Name     string
 	ParentID string
 }
+
+// DueCardsParams holds the optional filters for listing due cards. DeckID, when
+// set, restricts the result to a single deck. Date, when set, returns the cards
+// due on that date (a timestamp); when empty, Mochi uses today's date.
+type DueCardsParams struct {
+	DeckID string
+	Date   string
+}

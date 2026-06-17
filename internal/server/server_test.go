@@ -16,6 +16,7 @@ type fakeAPI struct {
 	decks []mochi.Deck
 
 	listCardsParams  mochi.ListCardsParams
+	dueCardsParams   mochi.DueCardsParams
 	createCardParams mochi.CreateCardParams
 	updateCardParams mochi.UpdateCardParams
 	updateCardID     string
@@ -36,6 +37,14 @@ func (f *fakeAPI) ListCards(_ context.Context, params mochi.ListCardsParams) (mo
 		docs = append(docs, c)
 	}
 	return mochi.CardsResult{Docs: docs, Bookmark: "bm"}, nil
+}
+
+func (f *fakeAPI) ListDueCards(_ context.Context, params mochi.DueCardsParams) ([]mochi.Card, error) {
+	f.dueCardsParams = params
+	if f.err != nil {
+		return nil, f.err
+	}
+	return []mochi.Card{{ID: "due1", Content: "due card"}}, nil
 }
 
 func (f *fakeAPI) GetCard(_ context.Context, id string) (mochi.Card, error) {
@@ -110,6 +119,21 @@ func TestCreateCardJoinsSides(t *testing.T) {
 	}
 	if out.Card.ID != "new-card" {
 		t.Errorf("card.ID = %q", out.Card.ID)
+	}
+}
+
+func TestListDueCards(t *testing.T) {
+	f := &fakeAPI{}
+	h := &handlers{api: f}
+	_, out, err := h.listDueCards(context.Background(), nil, ListDueCardsInput{DeckID: "d1", Date: "2026-06-17"})
+	if err != nil {
+		t.Fatalf("listDueCards: %v", err)
+	}
+	if f.dueCardsParams.DeckID != "d1" || f.dueCardsParams.Date != "2026-06-17" {
+		t.Errorf("unexpected params: %+v", f.dueCardsParams)
+	}
+	if len(out.Cards) != 1 || out.Cards[0].ID != "due1" {
+		t.Errorf("unexpected cards: %+v", out.Cards)
 	}
 }
 
@@ -227,9 +251,9 @@ func TestServerToolsRegistered(t *testing.T) {
 		t.Fatalf("list tools: %v", err)
 	}
 	want := map[string]bool{
-		"mochi_list_cards": true, "mochi_get_card": true, "mochi_create_card": true,
-		"mochi_update_card": true, "mochi_delete_card": true, "mochi_search_cards": true,
-		"mochi_list_decks": true, "mochi_create_deck": true,
+		"mochi_list_cards": true, "mochi_list_due_cards": true, "mochi_get_card": true,
+		"mochi_create_card": true, "mochi_update_card": true, "mochi_delete_card": true,
+		"mochi_search_cards": true, "mochi_list_decks": true, "mochi_create_deck": true,
 	}
 	got := map[string]bool{}
 	for _, tool := range tools.Tools {
