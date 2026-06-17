@@ -8,6 +8,11 @@
 *.so
 *.dylib
 
+# Compiled server binary and release artifacts
+/mochi-card-mcp
+/dist/
+/build/
+
 # Test binary, built with `go test -c`
 *.test
 
