@@ -26,6 +26,9 @@ type cardAPI interface {
 	CreateDeck(ctx context.Context, params mochi.CreateDeckParams) (mochi.Deck, error)
 	UpdateDeck(ctx context.Context, id string, params mochi.UpdateDeckParams) (mochi.Deck, error)
 	DeleteDeck(ctx context.Context, id string) error
+	ListTemplates(ctx context.Context, bookmark string) (mochi.TemplatesResult, error)
+	GetTemplate(ctx context.Context, id string) (mochi.Template, error)
+	CreateTemplate(ctx context.Context, params mochi.CreateTemplateParams) (mochi.Template, error)
 }
 
 // handlers holds the dependencies shared by the tool handlers.
@@ -99,6 +102,18 @@ func (h *handlers) register(s *mcp.Server) {
 		Name:        "mochi_delete_deck",
 		Description: "Permanently delete a Mochi deck by its ID.",
 	}, h.deleteDeck)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "mochi_list_templates",
+		Description: "List Mochi card templates. Supports pagination via bookmark.",
+	}, h.listTemplates)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "mochi_get_template",
+		Description: "Get a single Mochi card template by its ID.",
+	}, h.getTemplate)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "mochi_create_template",
+		Description: "Create a Mochi card template. Content is Markdown with << Field name >> placeholders; fields maps each field ID to its definition.",
+	}, h.createTemplate)
 }
 
 // ---- Input/output types ----
@@ -209,6 +224,34 @@ type DeleteDeckInput struct {
 type DeleteDeckOutput struct {
 	Deleted bool   `json:"deleted" jsonschema:"true if the deck was deleted"`
 	DeckID  string `json:"deck_id" jsonschema:"the ID of the deleted deck"`
+}
+
+// ListTemplatesInput are the arguments for mochi_list_templates.
+type ListTemplatesInput struct {
+	Bookmark string `json:"bookmark,omitempty" jsonschema:"pagination bookmark from a previous response"`
+}
+
+// TemplatesOutput is a page of templates.
+type TemplatesOutput struct {
+	Templates []mochi.Template `json:"templates" jsonschema:"the templates on this page"`
+	Bookmark  string           `json:"bookmark,omitempty" jsonschema:"bookmark to fetch the next page, if any"`
+}
+
+// GetTemplateInput are the arguments for mochi_get_template.
+type GetTemplateInput struct {
+	TemplateID string `json:"template_id" jsonschema:"the ID of the template to fetch"`
+}
+
+// CreateTemplateInput are the arguments for mochi_create_template.
+type CreateTemplateInput struct {
+	Name    string                         `json:"name" jsonschema:"the template name"`
+	Content string                         `json:"content" jsonschema:"the template body (Markdown with << Field name >> placeholders)"`
+	Fields  map[string]mochi.TemplateField `json:"fields,omitempty" jsonschema:"map of field ID to its definition (id, name, type, pos)"`
+}
+
+// TemplateOutput wraps a single template.
+type TemplateOutput struct {
+	Template mochi.Template `json:"template" jsonschema:"the template"`
 }
 
 // DeckOutput wraps a single deck.
@@ -362,6 +405,43 @@ func (h *handlers) deleteDeck(ctx context.Context, _ *mcp.CallToolRequest, in De
 		return nil, DeleteDeckOutput{}, err
 	}
 	return nil, DeleteDeckOutput{Deleted: true, DeckID: in.DeckID}, nil
+}
+
+func (h *handlers) listTemplates(ctx context.Context, _ *mcp.CallToolRequest, in ListTemplatesInput) (*mcp.CallToolResult, TemplatesOutput, error) {
+	res, err := h.api.ListTemplates(ctx, in.Bookmark)
+	if err != nil {
+		return nil, TemplatesOutput{}, err
+	}
+	return nil, TemplatesOutput{Templates: res.Docs, Bookmark: res.Bookmark}, nil
+}
+
+func (h *handlers) getTemplate(ctx context.Context, _ *mcp.CallToolRequest, in GetTemplateInput) (*mcp.CallToolResult, TemplateOutput, error) {
+	if in.TemplateID == "" {
+		return nil, TemplateOutput{}, fmt.Errorf("template_id is required")
+	}
+	tmpl, err := h.api.GetTemplate(ctx, in.TemplateID)
+	if err != nil {
+		return nil, TemplateOutput{}, err
+	}
+	return nil, TemplateOutput{Template: tmpl}, nil
+}
+
+func (h *handlers) createTemplate(ctx context.Context, _ *mcp.CallToolRequest, in CreateTemplateInput) (*mcp.CallToolResult, TemplateOutput, error) {
+	if in.Name == "" {
+		return nil, TemplateOutput{}, fmt.Errorf("name is required")
+	}
+	if in.Content == "" {
+		return nil, TemplateOutput{}, fmt.Errorf("content is required")
+	}
+	tmpl, err := h.api.CreateTemplate(ctx, mochi.CreateTemplateParams{
+		Name:    in.Name,
+		Content: in.Content,
+		Fields:  in.Fields,
+	})
+	if err != nil {
+		return nil, TemplateOutput{}, err
+	}
+	return nil, TemplateOutput{Template: tmpl}, nil
 }
 
 func (h *handlers) createDeck(ctx context.Context, _ *mcp.CallToolRequest, in CreateDeckInput) (*mcp.CallToolResult, DeckOutput, error) {

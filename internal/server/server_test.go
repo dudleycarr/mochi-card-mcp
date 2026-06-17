@@ -12,8 +12,9 @@ import (
 
 // fakeAPI is a configurable in-memory implementation of cardAPI.
 type fakeAPI struct {
-	cards map[string]mochi.Card
-	decks []mochi.Deck
+	cards     map[string]mochi.Card
+	decks     []mochi.Deck
+	templates []mochi.Template
 
 	listCardsParams  mochi.ListCardsParams
 	dueCardsParams   mochi.DueCardsParams
@@ -26,6 +27,8 @@ type fakeAPI struct {
 	updateDeckParams mochi.UpdateDeckParams
 	updateDeckID     string
 	deletedDeckID    string
+
+	createTemplateParams mochi.CreateTemplateParams
 
 	err error
 }
@@ -122,6 +125,33 @@ func (f *fakeAPI) UpdateDeck(_ context.Context, id string, params mochi.UpdateDe
 func (f *fakeAPI) DeleteDeck(_ context.Context, id string) error {
 	f.deletedDeckID = id
 	return f.err
+}
+
+func (f *fakeAPI) ListTemplates(_ context.Context, bookmark string) (mochi.TemplatesResult, error) {
+	if f.err != nil {
+		return mochi.TemplatesResult{}, f.err
+	}
+	return mochi.TemplatesResult{Docs: f.templates, Bookmark: bookmark}, nil
+}
+
+func (f *fakeAPI) GetTemplate(_ context.Context, id string) (mochi.Template, error) {
+	if f.err != nil {
+		return mochi.Template{}, f.err
+	}
+	for _, t := range f.templates {
+		if t.ID == id {
+			return t, nil
+		}
+	}
+	return mochi.Template{}, errors.New("not found")
+}
+
+func (f *fakeAPI) CreateTemplate(_ context.Context, params mochi.CreateTemplateParams) (mochi.Template, error) {
+	f.createTemplateParams = params
+	if f.err != nil {
+		return mochi.Template{}, f.err
+	}
+	return mochi.Template{ID: "new-template", Name: params.Name, Content: params.Content, Fields: params.Fields}, nil
 }
 
 func (f *fakeAPI) CreateDeck(_ context.Context, params mochi.CreateDeckParams) (mochi.Deck, error) {
@@ -304,6 +334,75 @@ func TestDeleteDeck(t *testing.T) {
 	}
 }
 
+func TestListTemplates(t *testing.T) {
+	f := &fakeAPI{templates: []mochi.Template{{ID: "t1", Name: "Basic"}}}
+	h := &handlers{api: f}
+	_, out, err := h.listTemplates(context.Background(), nil, ListTemplatesInput{Bookmark: "bm"})
+	if err != nil {
+		t.Fatalf("listTemplates: %v", err)
+	}
+	if len(out.Templates) != 1 || out.Templates[0].ID != "t1" {
+		t.Errorf("unexpected templates: %+v", out.Templates)
+	}
+	if out.Bookmark != "bm" {
+		t.Errorf("bookmark = %q, want bm", out.Bookmark)
+	}
+}
+
+func TestGetTemplate(t *testing.T) {
+	f := &fakeAPI{templates: []mochi.Template{{ID: "t1", Name: "Basic"}}}
+	h := &handlers{api: f}
+	_, out, err := h.getTemplate(context.Background(), nil, GetTemplateInput{TemplateID: "t1"})
+	if err != nil {
+		t.Fatalf("getTemplate: %v", err)
+	}
+	if out.Template.ID != "t1" || out.Template.Name != "Basic" {
+		t.Errorf("unexpected template: %+v", out.Template)
+	}
+}
+
+func TestGetTemplateRequiresID(t *testing.T) {
+	h := &handlers{api: &fakeAPI{}}
+	if _, _, err := h.getTemplate(context.Background(), nil, GetTemplateInput{}); err == nil {
+		t.Fatal("expected error for missing template_id")
+	}
+}
+
+func TestCreateTemplate(t *testing.T) {
+	f := &fakeAPI{}
+	h := &handlers{api: f}
+	fields := map[string]mochi.TemplateField{
+		"name": {ID: "name", Name: "Word", Type: "text"},
+	}
+	_, out, err := h.createTemplate(context.Background(), nil, CreateTemplateInput{
+		Name:    "Vocab",
+		Content: "<< Word >>",
+		Fields:  fields,
+	})
+	if err != nil {
+		t.Fatalf("createTemplate: %v", err)
+	}
+	if f.createTemplateParams.Name != "Vocab" || f.createTemplateParams.Content != "<< Word >>" {
+		t.Errorf("unexpected params: %+v", f.createTemplateParams)
+	}
+	if got := f.createTemplateParams.Fields["name"]; got.Type != "text" {
+		t.Errorf("field not passed through: %+v", f.createTemplateParams.Fields)
+	}
+	if out.Template.ID != "new-template" {
+		t.Errorf("template.ID = %q", out.Template.ID)
+	}
+}
+
+func TestCreateTemplateRequiresNameAndContent(t *testing.T) {
+	h := &handlers{api: &fakeAPI{}}
+	if _, _, err := h.createTemplate(context.Background(), nil, CreateTemplateInput{Content: "x"}); err == nil {
+		t.Fatal("expected error for missing name")
+	}
+	if _, _, err := h.createTemplate(context.Background(), nil, CreateTemplateInput{Name: "x"}); err == nil {
+		t.Fatal("expected error for missing content")
+	}
+}
+
 func TestHandlerPropagatesError(t *testing.T) {
 	h := &handlers{api: &fakeAPI{err: errors.New("boom")}}
 	if _, _, err := h.listDecks(context.Background(), nil, ListDecksInput{}); err == nil {
@@ -344,6 +443,7 @@ func TestServerToolsRegistered(t *testing.T) {
 		"mochi_create_card": true, "mochi_update_card": true, "mochi_delete_card": true,
 		"mochi_search_cards": true, "mochi_list_decks": true, "mochi_get_deck": true,
 		"mochi_create_deck": true, "mochi_update_deck": true, "mochi_delete_deck": true,
+		"mochi_list_templates": true, "mochi_get_template": true, "mochi_create_template": true,
 	}
 	got := map[string]bool{}
 	for _, tool := range tools.Tools {

@@ -74,6 +74,43 @@ type UpdateDeckParams struct {
 	Sort     *int
 }
 
+// TemplateField describes a single field within a template's fields map. Mochi
+// keys the map by field ID; ID is repeated inside the value.
+type TemplateField struct {
+	ID      string         `json:"id"`
+	Name    string         `json:"name"`
+	Type    string         `json:"type,omitempty"`
+	Pos     string         `json:"pos,omitempty"`
+	Content string         `json:"content,omitempty"`
+	Options map[string]any `json:"options,omitempty"`
+}
+
+// Template represents a Mochi card template. Content is Markdown with field
+// placeholders of the form "<< Field name >>".
+type Template struct {
+	ID      string                   `json:"id"`
+	Name    string                   `json:"name"`
+	Content string                   `json:"content"`
+	Pos     string                   `json:"pos,omitempty"`
+	Fields  map[string]TemplateField `json:"fields,omitempty"`
+	Style   map[string]any           `json:"style,omitempty"`
+	Options map[string]any           `json:"options,omitempty"`
+}
+
+// TemplatesResult is a single page of templates. Bookmark, when non-empty, can
+// be passed to the next request to fetch the following page.
+type TemplatesResult struct {
+	Docs     []Template `json:"docs"`
+	Bookmark string     `json:"bookmark,omitempty"`
+}
+
+// CreateTemplateParams holds the fields used to create a template.
+type CreateTemplateParams struct {
+	Name    string
+	Content string
+	Fields  map[string]TemplateField
+}
+
 // DueCardsParams holds the optional filters for listing due cards. DeckID, when
 // set, restricts the result to a single deck. Date, when set, returns the cards
 // due on that date (a timestamp); when empty, Mochi uses today's date.
