@@ -23,6 +23,9 @@ type fakeAPI struct {
 	deletedID        string
 	searchQuery      string
 	createDeckParams mochi.CreateDeckParams
+	updateDeckParams mochi.UpdateDeckParams
+	updateDeckID     string
+	deletedDeckID    string
 
 	err error
 }
@@ -93,6 +96,32 @@ func (f *fakeAPI) ListDecks(_ context.Context, _ string) (mochi.DecksResult, err
 		return mochi.DecksResult{}, f.err
 	}
 	return mochi.DecksResult{Docs: f.decks}, nil
+}
+
+func (f *fakeAPI) GetDeck(_ context.Context, id string) (mochi.Deck, error) {
+	if f.err != nil {
+		return mochi.Deck{}, f.err
+	}
+	for _, d := range f.decks {
+		if d.ID == id {
+			return d, nil
+		}
+	}
+	return mochi.Deck{}, errors.New("not found")
+}
+
+func (f *fakeAPI) UpdateDeck(_ context.Context, id string, params mochi.UpdateDeckParams) (mochi.Deck, error) {
+	f.updateDeckID = id
+	f.updateDeckParams = params
+	if f.err != nil {
+		return mochi.Deck{}, f.err
+	}
+	return mochi.Deck{ID: id, Name: params.Name, ParentID: params.ParentID}, nil
+}
+
+func (f *fakeAPI) DeleteDeck(_ context.Context, id string) error {
+	f.deletedDeckID = id
+	return f.err
 }
 
 func (f *fakeAPI) CreateDeck(_ context.Context, params mochi.CreateDeckParams) (mochi.Deck, error) {
@@ -215,6 +244,66 @@ func TestCreateDeck(t *testing.T) {
 	}
 }
 
+func TestGetDeck(t *testing.T) {
+	f := &fakeAPI{decks: []mochi.Deck{{ID: "d1", Name: "Spanish"}}}
+	h := &handlers{api: f}
+	_, out, err := h.getDeck(context.Background(), nil, GetDeckInput{DeckID: "d1"})
+	if err != nil {
+		t.Fatalf("getDeck: %v", err)
+	}
+	if out.Deck.ID != "d1" || out.Deck.Name != "Spanish" {
+		t.Errorf("unexpected deck: %+v", out.Deck)
+	}
+}
+
+func TestGetDeckRequiresID(t *testing.T) {
+	h := &handlers{api: &fakeAPI{}}
+	if _, _, err := h.getDeck(context.Background(), nil, GetDeckInput{}); err == nil {
+		t.Fatal("expected error for missing deck_id")
+	}
+}
+
+func TestUpdateDeck(t *testing.T) {
+	f := &fakeAPI{}
+	h := &handlers{api: f}
+	sort := 3
+	_, out, err := h.updateDeck(context.Background(), nil, UpdateDeckInput{DeckID: "d1", Name: "Español", Sort: &sort})
+	if err != nil {
+		t.Fatalf("updateDeck: %v", err)
+	}
+	if f.updateDeckID != "d1" {
+		t.Errorf("updated id = %q, want d1", f.updateDeckID)
+	}
+	if f.updateDeckParams.Name != "Español" || f.updateDeckParams.Sort == nil || *f.updateDeckParams.Sort != 3 {
+		t.Errorf("unexpected params: %+v", f.updateDeckParams)
+	}
+	if out.Deck.ID != "d1" {
+		t.Errorf("deck.ID = %q", out.Deck.ID)
+	}
+}
+
+func TestUpdateDeckRequiresAField(t *testing.T) {
+	h := &handlers{api: &fakeAPI{}}
+	if _, _, err := h.updateDeck(context.Background(), nil, UpdateDeckInput{DeckID: "d1"}); err == nil {
+		t.Fatal("expected error when no fields provided")
+	}
+}
+
+func TestDeleteDeck(t *testing.T) {
+	f := &fakeAPI{}
+	h := &handlers{api: f}
+	_, out, err := h.deleteDeck(context.Background(), nil, DeleteDeckInput{DeckID: "d9"})
+	if err != nil {
+		t.Fatalf("deleteDeck: %v", err)
+	}
+	if f.deletedDeckID != "d9" {
+		t.Errorf("deleted id = %q, want d9", f.deletedDeckID)
+	}
+	if !out.Deleted || out.DeckID != "d9" {
+		t.Errorf("unexpected output: %+v", out)
+	}
+}
+
 func TestHandlerPropagatesError(t *testing.T) {
 	h := &handlers{api: &fakeAPI{err: errors.New("boom")}}
 	if _, _, err := h.listDecks(context.Background(), nil, ListDecksInput{}); err == nil {
@@ -253,7 +342,8 @@ func TestServerToolsRegistered(t *testing.T) {
 	want := map[string]bool{
 		"mochi_list_cards": true, "mochi_list_due_cards": true, "mochi_get_card": true,
 		"mochi_create_card": true, "mochi_update_card": true, "mochi_delete_card": true,
-		"mochi_search_cards": true, "mochi_list_decks": true, "mochi_create_deck": true,
+		"mochi_search_cards": true, "mochi_list_decks": true, "mochi_get_deck": true,
+		"mochi_create_deck": true, "mochi_update_deck": true, "mochi_delete_deck": true,
 	}
 	got := map[string]bool{}
 	for _, tool := range tools.Tools {

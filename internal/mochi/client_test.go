@@ -248,6 +248,72 @@ func TestListDecksAndCreateDeck(t *testing.T) {
 	}
 }
 
+func TestGetDeck(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/decks/d1" {
+			t.Errorf("got %s %s, want GET /decks/d1", r.Method, r.URL.Path)
+		}
+		io.WriteString(w, `{"id":"d1","name":"Spanish"}`)
+	}))
+	defer srv.Close()
+
+	deck, err := newTestClient(srv).GetDeck(context.Background(), "d1")
+	if err != nil {
+		t.Fatalf("GetDeck: %v", err)
+	}
+	if deck.ID != "d1" || deck.Name != "Spanish" {
+		t.Errorf("unexpected deck: %+v", deck)
+	}
+}
+
+func TestUpdateDeck(t *testing.T) {
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/decks/d1" {
+			t.Errorf("got %s %s, want POST /decks/d1", r.Method, r.URL.Path)
+		}
+		json.NewDecoder(r.Body).Decode(&gotBody)
+		io.WriteString(w, `{"id":"d1","name":"Espanol","sort":3}`)
+	}))
+	defer srv.Close()
+
+	sort := 3
+	deck, err := newTestClient(srv).UpdateDeck(context.Background(), "d1", UpdateDeckParams{Name: "Espanol", Sort: &sort})
+	if err != nil {
+		t.Fatalf("UpdateDeck: %v", err)
+	}
+	if gotBody["name"] != "Espanol" {
+		t.Errorf("body name = %v", gotBody["name"])
+	}
+	if gotBody["sort"] != float64(3) {
+		t.Errorf("body sort = %v, want 3", gotBody["sort"])
+	}
+	// parent-id was not set, so it must be omitted entirely.
+	if _, ok := gotBody["parent-id"]; ok {
+		t.Errorf("parent-id should be omitted, body = %+v", gotBody)
+	}
+	if deck.ID != "d1" {
+		t.Errorf("deck.ID = %q, want d1", deck.ID)
+	}
+}
+
+func TestDeleteDeck(t *testing.T) {
+	var gotMethod, gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	if err := newTestClient(srv).DeleteDeck(context.Background(), "d1"); err != nil {
+		t.Fatalf("DeleteDeck: %v", err)
+	}
+	if gotMethod != http.MethodDelete || gotPath != "/decks/d1" {
+		t.Errorf("got %s %s, want DELETE /decks/d1", gotMethod, gotPath)
+	}
+}
+
 func TestAPIError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)

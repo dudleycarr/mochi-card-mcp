@@ -22,7 +22,10 @@ type cardAPI interface {
 	DeleteCard(ctx context.Context, id string) error
 	SearchCards(ctx context.Context, query, bookmark string) (mochi.CardsResult, error)
 	ListDecks(ctx context.Context, bookmark string) (mochi.DecksResult, error)
+	GetDeck(ctx context.Context, id string) (mochi.Deck, error)
 	CreateDeck(ctx context.Context, params mochi.CreateDeckParams) (mochi.Deck, error)
+	UpdateDeck(ctx context.Context, id string, params mochi.UpdateDeckParams) (mochi.Deck, error)
+	DeleteDeck(ctx context.Context, id string) error
 }
 
 // handlers holds the dependencies shared by the tool handlers.
@@ -81,9 +84,21 @@ func (h *handlers) register(s *mcp.Server) {
 		Description: "List Mochi decks. Supports pagination via bookmark.",
 	}, h.listDecks)
 	mcp.AddTool(s, &mcp.Tool{
+		Name:        "mochi_get_deck",
+		Description: "Get a single Mochi deck by its ID.",
+	}, h.getDeck)
+	mcp.AddTool(s, &mcp.Tool{
 		Name:        "mochi_create_deck",
 		Description: "Create a Mochi deck with the given name and optional parent deck.",
 	}, h.createDeck)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "mochi_update_deck",
+		Description: "Update a Mochi deck's name, parent deck, and/or sort position.",
+	}, h.updateDeck)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "mochi_delete_deck",
+		Description: "Permanently delete a Mochi deck by its ID.",
+	}, h.deleteDeck)
 }
 
 // ---- Input/output types ----
@@ -165,10 +180,35 @@ type DecksOutput struct {
 	Bookmark string       `json:"bookmark,omitempty" jsonschema:"bookmark to fetch the next page, if any"`
 }
 
+// GetDeckInput are the arguments for mochi_get_deck.
+type GetDeckInput struct {
+	DeckID string `json:"deck_id" jsonschema:"the ID of the deck to fetch"`
+}
+
 // CreateDeckInput are the arguments for mochi_create_deck.
 type CreateDeckInput struct {
 	Name     string `json:"name" jsonschema:"the name of the deck"`
 	ParentID string `json:"parent_id,omitempty" jsonschema:"optional parent deck ID"`
+}
+
+// UpdateDeckInput are the arguments for mochi_update_deck. Leave a field empty
+// (or sort null) to keep its current value.
+type UpdateDeckInput struct {
+	DeckID   string `json:"deck_id" jsonschema:"the ID of the deck to update"`
+	Name     string `json:"name,omitempty" jsonschema:"new deck name"`
+	ParentID string `json:"parent_id,omitempty" jsonschema:"new parent deck ID"`
+	Sort     *int   `json:"sort,omitempty" jsonschema:"new sort position among sibling decks"`
+}
+
+// DeleteDeckInput are the arguments for mochi_delete_deck.
+type DeleteDeckInput struct {
+	DeckID string `json:"deck_id" jsonschema:"the ID of the deck to delete"`
+}
+
+// DeleteDeckOutput reports the result of a deck delete.
+type DeleteDeckOutput struct {
+	Deleted bool   `json:"deleted" jsonschema:"true if the deck was deleted"`
+	DeckID  string `json:"deck_id" jsonschema:"the ID of the deleted deck"`
 }
 
 // DeckOutput wraps a single deck.
@@ -283,6 +323,45 @@ func (h *handlers) listDecks(ctx context.Context, _ *mcp.CallToolRequest, in Lis
 		return nil, DecksOutput{}, err
 	}
 	return nil, DecksOutput{Decks: res.Docs, Bookmark: res.Bookmark}, nil
+}
+
+func (h *handlers) getDeck(ctx context.Context, _ *mcp.CallToolRequest, in GetDeckInput) (*mcp.CallToolResult, DeckOutput, error) {
+	if in.DeckID == "" {
+		return nil, DeckOutput{}, fmt.Errorf("deck_id is required")
+	}
+	deck, err := h.api.GetDeck(ctx, in.DeckID)
+	if err != nil {
+		return nil, DeckOutput{}, err
+	}
+	return nil, DeckOutput{Deck: deck}, nil
+}
+
+func (h *handlers) updateDeck(ctx context.Context, _ *mcp.CallToolRequest, in UpdateDeckInput) (*mcp.CallToolResult, DeckOutput, error) {
+	if in.DeckID == "" {
+		return nil, DeckOutput{}, fmt.Errorf("deck_id is required")
+	}
+	if in.Name == "" && in.ParentID == "" && in.Sort == nil {
+		return nil, DeckOutput{}, fmt.Errorf("at least one of name, parent_id, or sort is required")
+	}
+	deck, err := h.api.UpdateDeck(ctx, in.DeckID, mochi.UpdateDeckParams{
+		Name:     in.Name,
+		ParentID: in.ParentID,
+		Sort:     in.Sort,
+	})
+	if err != nil {
+		return nil, DeckOutput{}, err
+	}
+	return nil, DeckOutput{Deck: deck}, nil
+}
+
+func (h *handlers) deleteDeck(ctx context.Context, _ *mcp.CallToolRequest, in DeleteDeckInput) (*mcp.CallToolResult, DeleteDeckOutput, error) {
+	if in.DeckID == "" {
+		return nil, DeleteDeckOutput{}, fmt.Errorf("deck_id is required")
+	}
+	if err := h.api.DeleteDeck(ctx, in.DeckID); err != nil {
+		return nil, DeleteDeckOutput{}, err
+	}
+	return nil, DeleteDeckOutput{Deleted: true, DeckID: in.DeckID}, nil
 }
 
 func (h *handlers) createDeck(ctx context.Context, _ *mcp.CallToolRequest, in CreateDeckInput) (*mcp.CallToolResult, DeckOutput, error) {

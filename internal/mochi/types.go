@@ -66,6 +66,14 @@ type CreateDeckParams struct {
 	ParentID string
 }
 
+// UpdateDeckParams holds the mutable fields of a deck. Empty strings and a nil
+// Sort are omitted from the request, leaving those fields unchanged.
+type UpdateDeckParams struct {
+	Name     string
+	ParentID string
+	Sort     *int
+}
+
 // DueCardsParams holds the optional filters for listing due cards. DeckID, when
 // set, restricts the result to a single deck. Date, when set, returns the cards
 // due on that date (a timestamp); when empty, Mochi uses today's date.
