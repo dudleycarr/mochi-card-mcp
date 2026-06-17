@@ -21,7 +21,10 @@ same set of tools.
 | `mochi_delete_card` | Delete a card | `card_id` |
 | `mochi_search_cards` | Search cards by content (case-insensitive) | `query`, `bookmark?` |
 | `mochi_list_decks` | List decks | `bookmark?` |
+| `mochi_get_deck` | Get a single deck | `deck_id` |
 | `mochi_create_deck` | Create a deck | `name`, `parent_id?` |
+| `mochi_update_deck` | Update a deck's name, parent, and/or sort | `deck_id`, `name?`, `parent_id?`, `sort?` |
+| `mochi_delete_deck` | Delete a deck | `deck_id` |
 
 Mochi stores both sides of a card in a single Markdown field separated by a
 `---` line. This server hides that detail: `name` is the front and `content` is
@@ -47,9 +50,9 @@ table in sync when adding or removing tools.
 | Cards | `DELETE /cards/:card-id/attachments/:filename` | ❌ Unsupported | [#12](https://github.com/dudleycarr/mochi-card-mcp/issues/12) |
 | Decks | `GET /decks` | ✅ Supported | `mochi_list_decks` |
 | Decks | `POST /decks` | ✅ Supported | `mochi_create_deck` |
-| Decks | `GET /decks/:id` | ❌ Unsupported | [#9](https://github.com/dudleycarr/mochi-card-mcp/issues/9) |
-| Decks | `POST /decks/:id` | ❌ Unsupported | [#5](https://github.com/dudleycarr/mochi-card-mcp/issues/5) |
-| Decks | `DELETE /decks/:id` | ❌ Unsupported | [#10](https://github.com/dudleycarr/mochi-card-mcp/issues/10) |
+| Decks | `GET /decks/:id` | ✅ Supported | `mochi_get_deck` |
+| Decks | `POST /decks/:id` | ✅ Supported | `mochi_update_deck` |
+| Decks | `DELETE /decks/:id` | ✅ Supported | `mochi_delete_deck` |
 | Templates | `GET /templates` | ❌ Unsupported | [#6](https://github.com/dudleycarr/mochi-card-mcp/issues/6) |
 | Templates | `GET /templates/:id` | ❌ Unsupported | [#11](https://github.com/dudleycarr/mochi-card-mcp/issues/11) |
 | Templates | `POST /templates` | ❌ Unsupported | [#7](https://github.com/dudleycarr/mochi-card-mcp/issues/7) |
