@@ -35,6 +35,30 @@ func (c *Client) ListCards(ctx context.Context, params ListCardsParams) (CardsRe
 	return result, nil
 }
 
+// ListDueCards returns the cards due for review, optionally restricted to a
+// single deck and/or a specific date. Unlike the other list endpoints, Mochi's
+// due endpoint returns all matching cards in one response under a "cards" key
+// and does not paginate.
+func (c *Client) ListDueCards(ctx context.Context, params DueCardsParams) ([]Card, error) {
+	path := "/due/"
+	if params.DeckID != "" {
+		path += url.PathEscape(params.DeckID)
+	}
+
+	q := url.Values{}
+	if params.Date != "" {
+		q.Set("date", params.Date)
+	}
+
+	var result struct {
+		Cards []Card `json:"cards"`
+	}
+	if err := c.do(ctx, "GET", path, q, nil, &result); err != nil {
+		return nil, err
+	}
+	return result.Cards, nil
+}
+
 // GetCard returns a single card by ID.
 func (c *Client) GetCard(ctx context.Context, id string) (Card, error) {
 	var card Card

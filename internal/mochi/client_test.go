@@ -63,6 +63,46 @@ func TestListCards(t *testing.T) {
 	}
 }
 
+func TestListDueCards(t *testing.T) {
+	var gotPath, gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotQuery = r.URL.RawQuery
+		io.WriteString(w, `{"cards":[{"id":"c1","content":"due"}]}`)
+	}))
+	defer srv.Close()
+
+	cards, err := newTestClient(srv).ListDueCards(context.Background(), DueCardsParams{DeckID: "d1", Date: "2026-06-17"})
+	if err != nil {
+		t.Fatalf("ListDueCards: %v", err)
+	}
+	if gotPath != "/due/d1" {
+		t.Errorf("path = %q, want /due/d1", gotPath)
+	}
+	if !strings.Contains(gotQuery, "date=2026-06-17") {
+		t.Errorf("query %q missing date", gotQuery)
+	}
+	if len(cards) != 1 || cards[0].ID != "c1" {
+		t.Errorf("unexpected cards: %+v", cards)
+	}
+}
+
+func TestListDueCardsNoDeck(t *testing.T) {
+	var gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		io.WriteString(w, `{"cards":[]}`)
+	}))
+	defer srv.Close()
+
+	if _, err := newTestClient(srv).ListDueCards(context.Background(), DueCardsParams{}); err != nil {
+		t.Fatalf("ListDueCards: %v", err)
+	}
+	if gotPath != "/due/" {
+		t.Errorf("path = %q, want /due/", gotPath)
+	}
+}
+
 func TestGetCard(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/cards/c1" {

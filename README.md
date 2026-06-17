@@ -14,6 +14,7 @@ same set of tools.
 | Tool | Description | Arguments |
 | --- | --- | --- |
 | `mochi_list_cards` | List cards, optionally filtered by deck | `deck_id?`, `bookmark?`, `limit?` |
+| `mochi_list_due_cards` | List cards due for review | `deck_id?`, `date?` |
 | `mochi_get_card` | Get a single card | `card_id` |
 | `mochi_create_card` | Create a card (`name` = front, `content` = back) | `name`, `content`, `deck_id?` |
 | `mochi_update_card` | Update a card's front and/or back | `card_id`, `name?`, `content?` |

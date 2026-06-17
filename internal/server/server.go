@@ -15,6 +15,7 @@ import (
 // interface so the handlers can be tested without a live API.
 type cardAPI interface {
 	ListCards(ctx context.Context, params mochi.ListCardsParams) (mochi.CardsResult, error)
+	ListDueCards(ctx context.Context, params mochi.DueCardsParams) ([]mochi.Card, error)
 	GetCard(ctx context.Context, id string) (mochi.Card, error)
 	CreateCard(ctx context.Context, params mochi.CreateCardParams) (mochi.Card, error)
 	UpdateCard(ctx context.Context, id string, params mochi.UpdateCardParams) (mochi.Card, error)
@@ -51,6 +52,10 @@ func (h *handlers) register(s *mcp.Server) {
 		Name:        "mochi_list_cards",
 		Description: "List Mochi flashcards, optionally filtered by deck. Supports pagination via bookmark.",
 	}, h.listCards)
+	mcp.AddTool(s, &mcp.Tool{
+		Name:        "mochi_list_due_cards",
+		Description: "List Mochi flashcards that are due for review, optionally filtered by deck and/or a specific date.",
+	}, h.listDueCards)
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "mochi_get_card",
 		Description: "Get a single Mochi flashcard by its ID.",
@@ -94,6 +99,18 @@ type ListCardsInput struct {
 type CardsOutput struct {
 	Cards    []mochi.Card `json:"cards" jsonschema:"the cards on this page"`
 	Bookmark string       `json:"bookmark,omitempty" jsonschema:"bookmark to fetch the next page, if any"`
+}
+
+// ListDueCardsInput are the arguments for mochi_list_due_cards.
+type ListDueCardsInput struct {
+	DeckID string `json:"deck_id,omitempty" jsonschema:"optional deck ID to restrict due cards to"`
+	Date   string `json:"date,omitempty" jsonschema:"optional date (timestamp) the cards are due on; defaults to today"`
+}
+
+// DueCardsOutput is the set of due cards. The due endpoint is not paginated, so
+// there is no bookmark.
+type DueCardsOutput struct {
+	Cards []mochi.Card `json:"cards" jsonschema:"the due cards"`
 }
 
 // GetCardInput are the arguments for mochi_get_card.
@@ -171,6 +188,17 @@ func (h *handlers) listCards(ctx context.Context, _ *mcp.CallToolRequest, in Lis
 		return nil, CardsOutput{}, err
 	}
 	return nil, CardsOutput{Cards: res.Docs, Bookmark: res.Bookmark}, nil
+}
+
+func (h *handlers) listDueCards(ctx context.Context, _ *mcp.CallToolRequest, in ListDueCardsInput) (*mcp.CallToolResult, DueCardsOutput, error) {
+	cards, err := h.api.ListDueCards(ctx, mochi.DueCardsParams{
+		DeckID: in.DeckID,
+		Date:   in.Date,
+	})
+	if err != nil {
+		return nil, DueCardsOutput{}, err
+	}
+	return nil, DueCardsOutput{Cards: cards}, nil
 }
 
 func (h *handlers) getCard(ctx context.Context, _ *mcp.CallToolRequest, in GetCardInput) (*mcp.CallToolResult, CardOutput, error) {
