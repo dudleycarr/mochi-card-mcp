@@ -50,6 +50,8 @@ Three layers, dependencies pointing downward:
 
 ### Mochi API specifics
 
+Reference: <https://mochi.cards/docs/api/> (the "Get all due cards" endpoint is at <https://mochi.cards/docs/api/#get-all-due-cards>). Consult it before changing request shapes or adding endpoints.
+
 - Base URL `https://app.mochi.cards/api`. Auth is HTTP Basic with the API key as the **username and an empty password** (`req.SetBasicAuth(key, "")`).
 - Request bodies use **hyphenated keys**: `deck-id`, `parent-id`.
 - Non-2xx responses become a typed `*mochi.APIError{StatusCode, Body}`.
